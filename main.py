@@ -173,4 +173,14 @@ if __name__ == '__main__':
     album = fetch_album(album_id)
     album.tracks = tracks
     print(album)
-    # fetch_track_crypted_url(267292575, 34588643)
+
+    # 批量下载全部音频
+    for idx, track in enumerate(tracks, 1):
+        # 清理文件名中的非法字符
+        safe_title = ''.join(c for c in track.title if c not in '\/:*?"<>|')
+        filename = f"{idx:03d}_{safe_title}.m4a"
+        print(f"正在下载({idx}/{len(tracks)}): {track.title}")
+        if track.url:
+            download_m4a(track.url, filename)
+        else:
+            print(f"跳过: {track.title}，无有效播放链接")
