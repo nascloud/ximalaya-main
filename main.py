@@ -1,6 +1,6 @@
 from track_fetcher import fetch_album_tracks, Track
 from album_fetcher import fetch_album, Album
-from downloader import download_m4a, batch_download
+from downloader import M4ADownloader
 from dataclasses import asdict
 import json
 import os
@@ -19,4 +19,5 @@ if __name__ == '__main__':
     # 下载目录可自定义，默认在 downloads/专辑名/
     # 你也可以自定义目录，例如：download_dir = r"D:\MyMusic\"
     download_dir = None  # 或自定义路径
-    batch_download(tracks, album.albumTitle, download_dir)
+    downloader = M4ADownloader(max_retries=3, retry_delay=3)
+    downloader.batch_download(tracks, album.albumTitle, download_dir)
