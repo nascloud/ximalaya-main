@@ -3,6 +3,8 @@ from dataclasses import dataclass, asdict
 from typing import List
 from utils import decrypt_url
 import json
+import os
+from dotenv import load_dotenv
 
 
 @dataclass
@@ -27,6 +29,11 @@ class Album:
     tracks: List[Track]
 
 
+# 加载 .env 文件
+load_dotenv()
+XIMALAYA_COOKIES = os.getenv("XIMALAYA_COOKIES", "")
+
+
 def fetch_track_crypted_url(track_id: int, album_id: int) -> str:
     """Fetch the crypted URL for a specific track."""
     url = f"https://www.ximalaya.com/mobile-playpage/track/v3/baseInfo/{album_id}"
@@ -37,7 +44,8 @@ def fetch_track_crypted_url(track_id: int, album_id: int) -> str:
     }
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Accept": "application/json"
+        "Accept": "application/json",
+        "Cookie": XIMALAYA_COOKIES
     }
     response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
@@ -59,19 +67,19 @@ def fetch_album_tracks(album_id: int, page: int, page_size: int) -> List[Track]:
         "pageSize": page_size
     }
     headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Cache-Control": "max-age=0",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+        "Cache-Control": "no-cache",
         "Connection": "keep-alive",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
+        "Pragma": "no-cache",
+        "Referer": f"https://www.ximalaya.com/album/{album_id}",
+        "Origin": "https://www.ximalaya.com",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
         "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"'
+        "sec-ch-ua-platform": '"Windows"',
+        "Cookie": XIMALAYA_COOKIES,
+        "X-Requested-With": "XMLHttpRequest"
     }
     response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
@@ -99,7 +107,7 @@ def fetch_album_tracks(album_id: int, page: int, page_size: int) -> List[Track]:
 
 
 def fetch_album(album_id):
-    url = f"http://www.ximalaya.cocm/revision/album/v1/simple?albumId={album_id}"
+    url = f"https://www.ximalaya.com/revision/album/v1/simple?albumId={album_id}"
     headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "Accept-Language": "en-US,en;q=0.9",
@@ -113,19 +121,24 @@ def fetch_album(album_id):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
         "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"'
+        "sec-ch-ua-platform": '"Windows"',
+        "Cookie": XIMALAYA_COOKIES
     }
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        data = response.json()
-        album_info = data.get("data", {}).get("albumPageMainInfo", [])
-        album = Album(albumId=album_id, albumTitle=album_info['albumTitle'], cover=album_info['cover'],
-                      createDate=album_info['createDate'],
-                      updateDate=album_info['updateDate'], richIntro=album_info['richIntro'], tracks=[])
-        return album
-    else:
-        print(f"Failed to fetch album info: {response.status_code}, {response.text}")
-        return []
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            album_info = data.get("data", {}).get("albumPageMainInfo", {})
+            album = Album(albumId=album_id, albumTitle=album_info.get('albumTitle', ''), cover=album_info.get('cover', ''),
+                          createDate=album_info.get('createDate', ''),
+                          updateDate=album_info.get('updateDate', ''), richIntro=album_info.get('richIntro', ''), tracks=[])
+            return album
+        else:
+            print(f"Failed to fetch album info: {response.status_code}, {response.text}")
+            return None
+    except Exception as e:
+        print(f"Exception fetching album info: {e}")
+        return None
 
 
 def download_m4a(url, output_file):
@@ -151,7 +164,7 @@ def download_m4a(url, output_file):
 # https://www.ximalaya.com/mobile-playpage/track/v3/baseInfo/54157194?device=web&trackId=491583482&trackQualityLevel=1
 if __name__ == '__main__':
     # album_id = 34588643
-    album_id = 39116538
+    album_id = 70278366
     page = 1
     page_size = 10
     tracks = fetch_album_tracks(album_id, page, page_size)

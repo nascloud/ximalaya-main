@@ -3,10 +3,13 @@ import time
 import hashlib
 import random
 import json
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
+# from requests.packages.urllib3.exceptions import InsecureRequestWarning
+# requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+import urllib3
 
+# 禁用 InsecureRequestWarning
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 獲取sign簽名
 
