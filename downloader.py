@@ -36,11 +36,18 @@ class M4ADownloader:
     def batch_download(self, tracks, album_title, download_dir=None):
         # 默认下载目录为 ./downloads/专辑名/
         if not download_dir:
-            safe_album = ''.join(c for c in album_title if c not in '\/:*?"<>|')
+            safe_album = ''.join(c for c in album_title if c not in ':/\\*?"<>|')
             download_dir = os.path.join(os.getcwd(), 'downloads', safe_album)
         os.makedirs(download_dir, exist_ok=True)
+        total = tracks[0].totalCount if tracks and hasattr(tracks[0], 'totalCount') and tracks[0].totalCount else len(tracks)
+        page = tracks[0].page if tracks and hasattr(tracks[0], 'page') else None
+        page_size = tracks[0].pageSize if tracks and hasattr(tracks[0], 'pageSize') else None
+        cover = tracks[0].cover if tracks and hasattr(tracks[0], 'cover') else None
+        if cover:
+            print(f"专辑封面: {cover}")
+        print(f"总音频数: {total}, 当前页: {page}, 每页: {page_size}")
         for idx, track in enumerate(tracks, 1):
-            safe_title = ''.join(c for c in track.title if c not in '\/:*?"<>|')
+            safe_title = ''.join(c for c in track.title if c not in ':/\\*?"<>|')
             filename = f"{idx:03d}_{safe_title}.m4a"
             filepath = os.path.join(download_dir, filename)
             print(f"正在下载({idx}/{len(tracks)}): {track.title}")

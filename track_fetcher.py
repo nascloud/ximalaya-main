@@ -3,7 +3,10 @@ import os
 from utils import decrypt_url
 from dotenv import load_dotenv
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
+import urllib3
+# 忽略 InsecureRequestWarning
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 load_dotenv()
 XIMALAYA_COOKIES = os.getenv("XIMALAYA_COOKIES", "")
@@ -17,6 +20,11 @@ class Track:
     cryptedUrl: str
     url: str
     duration: int
+    # 新增字段
+    totalCount: Optional[int] = None  # 专辑下音频总数
+    page: Optional[int] = None        # 当前页码
+    pageSize: Optional[int] = None    # 每页音频数量
+    cover: Optional[str] = None       # 专辑封面
 
 def fetch_track_crypted_url(track_id: int, album_id: int) -> str:
     url = f"https://www.ximalaya.com/mobile-playpage/track/v3/baseInfo/{album_id}"
@@ -64,20 +72,32 @@ def fetch_album_tracks(album_id: int, page: int, page_size: int) -> List[Track]:
     response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
         data = response.json()
+        # 保存data到文件，便于调试
+        with open("album_tracks_data.json", "w", encoding="utf-8") as f:
+            f.write(response.text)
         track_list = data.get("data", {}).get("trackDetailInfos", [])
         tracks = []
         for track in track_list:
-            track = track['trackInfo']
-            crypted_url = fetch_track_crypted_url(track["id"], album_id)
+            track_info = track['trackInfo']
+            crypted_url = fetch_track_crypted_url(track_info["id"], album_id)
+            if not crypted_url:
+                print(f"跳过: {track_info['title']}，无有效播放链接")
+                continue
+            cover_path = track_info.get("cover")
+            cover_url = f"https://imagev2.xmcdn.com/{cover_path}" if cover_path and not cover_path.startswith("http") else cover_path
             tracks.append(
                 Track(
-                    trackId=track["id"],
-                    title=track["title"],
-                    createTime=track["createdTime"],
-                    updateTime=track["updatedTime"],
+                    trackId=track_info["id"],
+                    title=track_info["title"],
+                    createTime=track_info["createdTime"],
+                    updateTime=track_info["updatedTime"],
                     cryptedUrl=crypted_url,
                     url=decrypt_url(crypted_url),
-                    duration=track.get("duration", 0),
+                    duration=track_info.get("duration", 0),
+                    totalCount=data.get("data", {}).get("totalCount"),  # 专辑音频总数
+                    page=page,  # 当前页码
+                    pageSize=page_size,  # 每页数量
+                    cover=cover_url,  # 拼接后的专辑封面
                 )
             )
         return tracks
