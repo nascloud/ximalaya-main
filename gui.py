@@ -12,6 +12,7 @@ from utils import decrypt_url
 from PIL import Image, ImageTk
 import requests
 from io import BytesIO
+from album_download import AlbumDownloader
 
 class XimalayaGUI:
     def __init__(self, root):
@@ -147,29 +148,7 @@ class XimalayaGUI:
             return
         self.log(f'下载专辑: {album_id}')
         def task():
-            album = fetch_album(int(album_id))
-            if not album:
-                self.log('获取专辑信息失败')
-                return
-            tracks = []
-            page = 1
-            page_size = 20
-            while True:
-                page_tracks = fetch_album_tracks(int(album_id), page, page_size)
-                if not page_tracks:
-                    break
-                tracks.extend(page_tracks)
-                if len(page_tracks) < page_size:
-                    break
-                page += 1
-            if not tracks:
-                self.log('未获取到曲目')
-                return
-            album.tracks = tracks
-            self.log(f'专辑：{album.albumTitle}，共{len(tracks)}条曲目，开始下载...')
-            downloader = M4ADownloader()
-            downloader.batch_download(tracks, album.albumTitle)
-            self.log('下载完成')
+            AlbumDownloader(album_id, log_func=self.log).download_album()
         self.run_in_thread(task)
 
     def run_track_download(self):
