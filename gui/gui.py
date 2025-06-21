@@ -66,15 +66,7 @@ class XimalayaDownloader:
 class XimalayaGUI:
     def __init__(self, root, default_download_dir=None):
         self.root = root
-        if default_download_dir:
-            self.default_download_dir = default_download_dir
-        else:
-            import sys
-            if hasattr(sys, '_MEIPASS'):
-                base_dir = sys._MEIPASS
-            else:
-                base_dir = os.getcwd()
-            self.default_download_dir = os.path.join(base_dir, 'AudioBook')
+        self.default_download_dir = default_download_dir
         self.root.title('喜马拉雅批量下载工具')
         self.root.geometry('900x600')
 

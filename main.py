@@ -7,16 +7,13 @@ from gui.gui import XimalayaGUI
 import os, sys
 
 def main():
-
-    if hasattr(sys, '_MEIPASS'):
-        base_dir = sys._MEIPASS
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        base_dir = os.path.dirname(sys.executable)
     else:
         base_dir = os.getcwd()
     default_download_dir = os.path.join(base_dir, 'AudioBook')
-
     if not os.path.exists(default_download_dir):
         os.makedirs(default_download_dir, exist_ok=True)
-    
     root = tk.Tk()
     app = XimalayaGUI(root, default_download_dir=default_download_dir)
     root.mainloop()

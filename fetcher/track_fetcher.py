@@ -20,7 +20,6 @@ class Track:
     cryptedUrl: str
     url: str
     duration: int
-    # 新增字段
     totalCount: Optional[int] = None  # 专辑下音频总数
     page: Optional[int] = None        # 当前页码
     pageSize: Optional[int] = None    # 每页音频数量
@@ -72,9 +71,6 @@ def fetch_album_tracks(album_id: int, page: int, page_size: int) -> List[Track]:
     response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
         data = response.json()
-        # 保存data到文件，便于调试
-        with open("album_tracks_data.json", "w", encoding="utf-8") as f:
-            f.write(response.text)
         track_list = data.get("data", {}).get("trackDetailInfos", [])
         tracks = []
         for track in track_list:

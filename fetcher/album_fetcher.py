@@ -37,14 +37,10 @@ def fetch_album(album_id):
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()  # Raise an error for bad responses
-        # 保存响应内容到文件
-        with open(f"album_{album_id}.json", 'w', encoding='utf-8') as f:
-            f.write(response.text)
         if response.status_code == 200:
             data = response.json()
             album_info = data.get("data", {}).get("albumPageMainInfo", {})
             cover = album_info.get('cover', '')
-            # 自动拼接完整封面地址
             if cover and cover.startswith('//'):
                 cover = 'https:' + cover
             elif cover and not cover.startswith('http'):
