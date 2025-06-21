@@ -18,7 +18,7 @@ def main():
         os.makedirs(default_download_dir, exist_ok=True)
     
     root = tk.Tk()
-    app = XimalayaGUI(root)
+    app = XimalayaGUI(root, default_download_dir=default_download_dir)
     root.mainloop()
 
 if __name__ == '__main__':
