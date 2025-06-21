@@ -2,6 +2,9 @@ import requests
 import os
 import time
 
+# 如需用到 decrypt_url，可这样导入：
+# from utils.utils import decrypt_url
+
 class M4ADownloader:
     def __init__(self, max_retries=3, retry_delay=3):
         self.max_retries = max_retries

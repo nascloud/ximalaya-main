@@ -5,14 +5,14 @@ import os
 import re
 
 # 假设你的核心功能都在这些脚本中有对应函数
-from album_fetcher import fetch_album
-from track_fetcher import fetch_album_tracks, fetch_track_crypted_url
-from downloader import M4ADownloader
-from utils import decrypt_url
+from fetcher.album_fetcher import fetch_album
+from fetcher.track_fetcher import fetch_album_tracks, fetch_track_crypted_url
+from downloader.downloader import M4ADownloader
+from utils.utils import decrypt_url
 from PIL import Image, ImageTk
 import requests
 from io import BytesIO
-from album_download import AlbumDownloader
+from downloader.album_download import AlbumDownloader
 
 class XimalayaGUI:
     def __init__(self, root):

@@ -23,3 +23,6 @@ def decrypt_url(ciphertext):
     decrypted = decrypted[:-pad_len]
     # 将字节转换为字符串
     return decrypted.decode('utf-8')
+
+# 如需在其他模块调用 decrypt_url，请使用：
+# from utils.utils import decrypt_url

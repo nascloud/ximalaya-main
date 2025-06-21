@@ -1,6 +1,6 @@
 import requests
 import os
-from utils import decrypt_url
+from utils.utils import decrypt_url
 from dotenv import load_dotenv
 from dataclasses import dataclass
 from typing import List, Optional

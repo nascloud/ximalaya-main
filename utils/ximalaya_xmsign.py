@@ -29,6 +29,9 @@ def get_header():
     return headers
 
 
+# 如需在其他模块调用 get_sign/get_header，请使用：
+# from utils.ximalaya_xmsign import get_sign, get_header
+
 if __name__ == '__main__':
     # 這是一個搜索接口
     url = "https://www.ximalaya.com/revision/search/main?core=all&spellchecker=true&device=iPhone&kw=%E9%9B%AA%E4%B8%AD%E6%82%8D%E5%88%80%E8%A1%8C&page=1&rows=20&condition=relation&fq=&paidFilter=false"

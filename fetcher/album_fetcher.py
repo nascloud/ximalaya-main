@@ -63,3 +63,7 @@ def fetch_album(album_id):
     except Exception as e:
         print(f"Exception fetching album info: {e}")
         return None
+
+# 如需用到 Track 类型或 decrypt_url，可这样导入：
+# from fetcher.track_fetcher import Track
+# from utils.utils import decrypt_url

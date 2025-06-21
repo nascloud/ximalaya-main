@@ -1,6 +1,7 @@
 import json
 import requests
-from read_from_csv import fetch_track_crypted_url, decrypt_url
+from fetcher.track_fetcher import fetch_track_crypted_url
+from utils.utils import decrypt_url
 from dotenv import load_dotenv
 import os
 
