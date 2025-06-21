@@ -76,6 +76,11 @@ class XimalayaGUI:
         self.log_text = scrolledtext.ScrolledText(root, width=60, height=28, state='normal')
         self.log_text.grid(row=1, column=2, rowspan=6, padx=10, sticky='nsew')
 
+        # 下载延迟输入
+        tk.Label(root, text='下载延迟(秒):').grid(row=3, column=0, sticky='e')
+        self.delay_var = tk.StringVar(value='3')
+        tk.Entry(root, textvariable=self.delay_var, width=8).grid(row=3, column=1, sticky='w')
+
         # 使日志区和专辑信息区自适应拉伸
         root.grid_columnconfigure(2, weight=1)
         root.grid_rowconfigure(6, weight=1)
@@ -118,9 +123,7 @@ class XimalayaGUI:
                 self.intro_text.config(state='disabled')
                 self.album_create_var.set(album.createDate)
                 self.album_update_var.set(album.updateDate)
-                # 直接从album获取cover和曲目数量
                 cover_url = album.cover if album.cover else ''
-                # 获取曲目数量（可选：通过fetch_album_tracks获取totalCount更准确）
                 try:
                     tracks = fetch_album_tracks(int(album_id), 1, 1)
                     total_count = tracks[0].totalCount if tracks and tracks[0].totalCount else ''
@@ -146,9 +149,17 @@ class XimalayaGUI:
         if not album_id:
             messagebox.showwarning('提示', '请输入专辑ID')
             return
-        self.log(f'下载专辑: {album_id}')
+        # 从UI获取延迟参数
+        try:
+            delay = float(self.delay_var.get())
+            if delay < 0:
+                delay = 0
+        except Exception:
+            delay = 1
+        self.download_delay = delay
+        self.log(f'下载专辑: {album_id} (延迟: {delay}s)')
         def task():
-            AlbumDownloader(album_id, log_func=self.log).download_album()
+            AlbumDownloader(album_id, log_func=self.log, delay=delay).download_album()
         self.run_in_thread(task)
 
     def run_track_download(self):

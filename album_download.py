@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from album_fetcher import fetch_album
 from track_fetcher import fetch_album_tracks, fetch_track_crypted_url
 from downloader import M4ADownloader
@@ -7,13 +8,14 @@ from utils import decrypt_url
 
 
 class AlbumDownloader:
-    def __init__(self, album_id, log_func=print):
+    def __init__(self, album_id, log_func=print, delay=0):
         self.album_id = int(album_id)
         self.log = log_func
         self.album = None
         self.tracks = []
         self.save_dir = None
         self.downloader = M4ADownloader()
+        self.delay = delay  # 下载延迟（秒）
 
     def fetch_album_info(self):
         self.album = fetch_album(self.album_id)
@@ -121,6 +123,8 @@ class AlbumDownloader:
                         if attempt == 2:
                             self.log(f'[{idx}] 多次失败，跳过: {filename}')
                 idx += 1
+                if self.delay > 0:
+                    time.sleep(self.delay)
             all_done = all(t.get('done') for t in page_progress['tracks'].values()) and len(page_progress['tracks']) == len(page_tracks)
             if all_done:
                 page_progress['done'] = True
