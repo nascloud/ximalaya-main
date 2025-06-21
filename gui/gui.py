@@ -13,6 +13,56 @@ import requests
 from io import BytesIO
 from downloader.album_download import AlbumDownloader
 
+class XimalayaDownloader:
+    """
+    统一封装下载相关功能，便于后续扩展和调用。
+    """
+    def __init__(self, log_func=print, default_download_dir=None):
+        self.log = log_func
+        self.default_download_dir = default_download_dir
+
+    def fetch_album_info(self, album_id):
+        album = fetch_album(album_id)
+        if not album:
+            self.log('获取专辑信息失败')
+            return None
+        return album
+
+    def fetch_tracks(self, album_id, page=1, page_size=20):
+        return fetch_album_tracks(album_id, page, page_size)
+
+    def fetch_all_tracks(self, album_id, page_size=20):
+        all_tracks = []
+        page = 1
+        while True:
+            tracks = fetch_album_tracks(album_id, page, page_size)
+            if not tracks:
+                break
+            all_tracks.extend(tracks)
+            if len(tracks) < page_size:
+                break
+            page += 1
+        return all_tracks
+
+    def download_album(self, album_id, delay=0):
+        AlbumDownloader(album_id, log_func=self.log, delay=delay, save_dir=self.default_download_dir).download_album()
+
+    def download_track(self, track_id, album_id=None, filename=None):
+        try:
+            crypted_url = fetch_track_crypted_url(int(track_id), album_id)
+        except TypeError:
+            crypted_url = fetch_track_crypted_url(int(track_id), 0)
+        if not crypted_url:
+            self.log('未获取到加密URL')
+            return
+        url = decrypt_url(crypted_url)
+        if not filename:
+            filename = f'{track_id}.m4a'
+        downloader = M4ADownloader()
+        self.log(f'正在下载: {filename}')
+        downloader.download_m4a(url, filename)
+        self.log('下载完成')
+
 class XimalayaGUI:
     def __init__(self, root, default_download_dir=None):
         self.root = root
