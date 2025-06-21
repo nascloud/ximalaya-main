@@ -8,12 +8,12 @@ from utils.utils import decrypt_url
 
 
 class AlbumDownloader:
-    def __init__(self, album_id, log_func=print, delay=0):
+    def __init__(self, album_id, log_func=print, delay=0, save_dir=None):
         self.album_id = int(album_id)
         self.log = log_func
         self.album = None
         self.tracks = []
-        self.save_dir = None
+        self.save_dir = save_dir  # 支持外部传递下载目录
         self.downloader = M4ADownloader()
         self.delay = delay  # 下载延迟（秒）
 
@@ -22,7 +22,11 @@ class AlbumDownloader:
         if not self.album:
             self.log('获取专辑信息失败')
             return False
-        self.save_dir = os.path.join('downloads', self.album.albumTitle)
+        # 优先使用外部传递的 save_dir
+        if self.save_dir:
+            self.save_dir = os.path.join(self.save_dir, self.album.albumTitle)
+        else:
+            self.save_dir = os.path.join('downloads', self.album.albumTitle)
         os.makedirs(self.save_dir, exist_ok=True)
         self.log(f'专辑：{self.album.albumTitle}，准备下载...')
         return True

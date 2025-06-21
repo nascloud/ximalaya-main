@@ -15,10 +15,11 @@ from io import BytesIO
 from downloader.album_download import AlbumDownloader
 
 class XimalayaGUI:
-    def __init__(self, root):
+    def __init__(self, root, default_download_dir=None):
         self.root = root
+        self.default_download_dir = default_download_dir or os.path.join(os.getcwd(), 'AudioBook')
         self.root.title('喜马拉雅批量下载工具')
-        self.root.geometry('600x500')
+        self.root.geometry('900x600')
 
         # 专辑ID输入
         tk.Label(root, text='专辑ID:').grid(row=0, column=0, sticky='e')
@@ -159,7 +160,8 @@ class XimalayaGUI:
         self.download_delay = delay
         self.log(f'下载专辑: {album_id} (延迟: {delay}s)')
         def task():
-            AlbumDownloader(album_id, log_func=self.log, delay=delay).download_album()
+            # 使用默认下载目录
+            AlbumDownloader(album_id, log_func=self.log, delay=delay, save_dir=self.default_download_dir).download_album()
         self.run_in_thread(task)
 
     def run_track_download(self):
