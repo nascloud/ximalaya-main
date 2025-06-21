@@ -23,16 +23,52 @@ class M4ADownloader:
         print(f"\n文件已成功下载并保存为: {output_file}")
         return True
 
-    def download_m4a(self, url, output_file):
+    def download_m4a(self, url, output_file, log_func=print):
         for attempt in range(1, self.max_retries + 1):
             try:
                 return self._download_once(url, output_file)
             except requests.exceptions.RequestException as e:
-                print(f"\n下载失败({attempt}/{self.max_retries}): {e}")
+                log_func(f"\n下载失败({attempt}/{self.max_retries}): {e}")
                 if attempt < self.max_retries:
-                    print(f"等待{self.retry_delay}秒后重试...")
+                    log_func(f"等待{self.retry_delay}秒后重试...")
                     time.sleep(self.retry_delay)
                 else:
-                    print(f"多次重试失败，跳过该文件: {output_file}")
+                    log_func(f"多次重试失败，跳过该文件: {output_file}")
         return False
+
+    def get_track_download_url(self, track_id, album_id=None):
+        """
+        统一获取track的真实下载url，外部只需传track_id和可选album_id
+        """
+        from fetcher.track_fetcher import fetch_track_crypted_url
+        from utils.utils import decrypt_url
+        try:
+            crypted_url = fetch_track_crypted_url(int(track_id), album_id)
+        except TypeError:
+            crypted_url = fetch_track_crypted_url(int(track_id), 0)
+        if not crypted_url:
+            return None
+        return decrypt_url(crypted_url)
+
+    def download_from_url(self, url, output_file, log_func=print):
+        """
+        直接下载指定url到本地文件，带重试和日志
+        """
+        log_func(f'正在下载: {output_file}')
+        self.download_m4a(url, output_file, log_func=log_func)
+        log_func('下载完成')
+        return True
+
+    def download_track_by_id(self, track_id, album_id=None, output_file=None, log_func=print):
+        """
+        通过track_id和album_id直接下载音频到指定文件
+        """
+        url = self.get_track_download_url(track_id, album_id)
+        if not url:
+            log_func(f'未获取到下载URL: track_id={track_id}')
+            raise Exception('未获取到下载URL')
+        self.download_from_url(url, output_file, log_func=log_func)
+
+# 兼容旧接口，统一对外调用
+Downloader = M4ADownloader
 

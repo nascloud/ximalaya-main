@@ -1,8 +1,5 @@
 import os
-from fetcher.track_fetcher import fetch_track_crypted_url
-from downloader.downloader import M4ADownloader
-from utils.utils import decrypt_url
-from fetcher.track_info_fetcher import get_track_info
+from downloader.downloader import Downloader
 
 def download_single_track(track_id, album_id=None, filename=None, log_func=print, save_dir=None):
     """
@@ -13,20 +10,12 @@ def download_single_track(track_id, album_id=None, filename=None, log_func=print
     :param log_func: 日志输出函数
     :param save_dir: 保存目录
     """
-    # 获取音频信息
+    from fetcher.track_info_fetcher import get_track_info
+    # 获取音频信息用于文件名
     track_info = get_track_info(int(track_id))
     if not track_info or not track_info.title:
         log_func('未获取到音频信息')
         return False
-    try:
-        crypted_url = fetch_track_crypted_url(int(track_id), album_id)
-    except TypeError:
-        crypted_url = fetch_track_crypted_url(int(track_id), 0)
-    if not crypted_url:
-        log_func('未获取到加密URL')
-        return False
-    url = decrypt_url(crypted_url)
-    # 文件名优先级：参数 > 音频标题 > track_id
     if not filename:
         safe_title = track_info.title.replace('/', '_').replace('\\', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
         filename = f'{safe_title or track_id}.m4a'
@@ -35,8 +24,6 @@ def download_single_track(track_id, album_id=None, filename=None, log_func=print
         filepath = os.path.join(save_dir, filename)
     else:
         filepath = filename
-    downloader = M4ADownloader()
-    log_func(f'正在下载: {filename}')
-    downloader.download_m4a(url, filepath)
-    log_func('下载完成')
+    downloader = Downloader()
+    downloader.download_track_by_id(track_id, album_id, filepath, log_func=log_func)
     return True
