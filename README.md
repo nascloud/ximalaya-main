@@ -10,7 +10,8 @@
 - **多线程下载**：可配置线程数，大幅提升下载速度。
 - **音频 URL 解密**：自动解密加密的音频播放链接。
 - **收听历史获取**：可获取个人账号的收听历史（需配置 Cookie）。
-- **单曲信息抓取**：支持通过 trackId 获取单个音频的详细信息。
+- **单曲信息抓取与下载**：支持通过 trackId 获取单个音频的详细信息，并可单独下载音频，支持根据音频标题自动命名文件。
+- **专辑简介 Markdown 支持**：下载专辑时自动生成 Markdown 格式的专辑简介（album_info.md），便于阅读和管理。
 - **API 签名生成**：内置 xm-sign 生成逻辑，适配新版接口。
 - **图形界面支持**：集成简单 GUI，便于操作。
 
@@ -74,27 +75,36 @@ python main.py
 python fetcher/album_fetcher.py --album_id <专辑ID> [--start_page 1] [--end_page N] [--threads 4]
 ```
 - 支持断点续传和多线程。
+- 下载完成后会在专辑目录下自动生成 `album_info.md`，包含专辑简介（Markdown 格式）。
 
 ### 6.3 单曲信息抓取
 
 ```shell
 python fetcher/track_fetcher.py --track_id <音频ID> [--album_id <专辑ID>]
 ```
+- 可获取音频详细信息。
 
-### 6.4 多线程下载单个音频
+### 6.4 单曲下载（支持智能命名）
+
+```shell
+python downloader/single_track_download.py --track_id <音频ID> [--album_id <专辑ID>] [--output <保存文件名>]
+```
+- 支持根据音频标题自动命名文件。
+
+### 6.5 多线程下载单个音频
 
 ```shell
 python downloader/downloader.py --url <音频URL> --output <保存文件名> [--threads 8]
 ```
 
-### 6.5 获取收听历史
+### 6.6 获取收听历史
 
 ```shell
 python fetcher/history_fetch.py
 ```
 - 需先配置 Cookie。
 
-### 6.6 API 签名测试
+### 6.7 API 签名测试
 
 ```shell
 python utils/ximalaya_xmsign.py
@@ -106,6 +116,7 @@ python xm-demo.py
 
 - **Cookie 有效期有限，失效请重新获取。**
 - **部分 VIP 内容需账号权限。**
+- **专辑下载会自动生成 album_info.md（Markdown 简介），便于归档。**
 - **请勿用于商业或非法用途，仅供学习交流。**
 - **如遇接口变动或反爬升级，请关注项目更新。**
 
