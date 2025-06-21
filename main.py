@@ -13,7 +13,7 @@ def input_int(prompt, default):
         print("输入无效，使用默认值。")
         return default
 
-def fetch_all_tracks(album_id, page_size=30):
+def fetch_all_tracks(album_id, page_size=20):
     """自动翻页获取专辑所有曲目"""
     all_tracks = []
     page = 1
