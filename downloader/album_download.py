@@ -20,7 +20,7 @@ class AlbumDownloader:
     def fetch_album_info(self):
         self.album = fetch_album(self.album_id)
         if not self.album:
-            self.log('获取专辑信息失败')
+            self.log('获取专辑信息失败', level='error')
             return False
         # 过滤专辑名中的非法字符
         safe_album_title = re.sub(r'[\\/:*?"<>|]', '_', self.album.albumTitle)
@@ -29,7 +29,7 @@ class AlbumDownloader:
         else:
             self.save_dir = os.path.join('downloads', safe_album_title)
         os.makedirs(self.save_dir, exist_ok=True)
-        self.log(f'专辑：{self.album.albumTitle}，准备下载...')
+        self.log(f'专辑：{self.album.albumTitle}，准备下载...', level='info')
         return True
 
     def save_album_info(self):
@@ -53,7 +53,7 @@ class AlbumDownloader:
             with open(info_path, 'w', encoding='utf-8') as f:
                 json.dump(album_info, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            self.log(f'保存专辑信息失败: {e}')
+            self.log(f'保存专辑信息失败: {e}', level='error')
         # 美化 richIntro 内容，转换为 Markdown
         def html_to_markdown(html):
             html = unescape(html)
@@ -84,7 +84,7 @@ class AlbumDownloader:
                 f.write(f"**更新时间**: {album_info['updateDate']}  \n\n")
                 f.write(f"## 简介\n{rich_intro_md}\n")
         except Exception as e:
-            self.log(f'保存专辑markdown信息失败: {e}')
+            self.log(f'保存专辑markdown信息失败: {e}', level='error')
         # 下载封面图片
         cover_url = getattr(self.album, 'cover', None)
         if cover_url:
@@ -94,9 +94,9 @@ class AlbumDownloader:
                     with open(os.path.join(self.save_dir, 'cover.jpg'), 'wb') as f:
                         f.write(resp.content)
                 else:
-                    self.log(f'封面下载失败，状态码: {resp.status_code}')
+                    self.log(f'封面下载失败，状态码: {resp.status_code}', level='warning')
             except Exception as e:
-                self.log(f'下载封面失败: {e}')
+                self.log(f'下载封面失败: {e}', level='warning')
 
     def _get_progress_file(self):
         return os.path.join(self.save_dir, 'download_progress.json')
@@ -126,7 +126,7 @@ class AlbumDownloader:
                 tmp_file = tf.name
             os.replace(tmp_file, progress_file)
         except Exception as e:
-            self.log(f'保存进度失败: {e}')
+            self.log(f'保存进度失败: {e}', level='warning')
 
     def fetch_and_download_tracks(self):
         import json
@@ -140,7 +140,7 @@ class AlbumDownloader:
         while not finished:
             page_key = str(page)
             if progress.get(page_key, {}).get('done'):
-                self.log(f'第{page}页已全部完成，跳过')
+                self.log(f'第{page}页已全部完成，跳过', level='info')
                 idx += page_size
                 page += 1
                 continue
@@ -149,7 +149,7 @@ class AlbumDownloader:
                 break
             if total_count is None and hasattr(page_tracks[0], 'totalCount'):
                 total_count = page_tracks[0].totalCount
-            self.log(f'已获取第{page}页曲目，共{idx-1+len(page_tracks)}/{total_count or "?"}条，开始下载本页...')
+            self.log(f'已获取第{page}页曲目，共{idx-1+len(page_tracks)}/{total_count or "?"}条，开始下载本页...', level='info')
             page_progress = progress.get(page_key, {})
             if 'tracks' not in page_progress:
                 page_progress['tracks'] = {}
@@ -160,11 +160,11 @@ class AlbumDownloader:
                 track_id = str(getattr(track, 'trackId', idx))
                 track_status = page_progress['tracks'].get(track_id, {})
                 if track_status.get('done'):
-                    self.log(f'[{idx}/{total_count or "?"}] 已完成，跳过: {filename}')
+                    self.log(f'[{idx}/{total_count or "?"}] 已完成，跳过: {filename}', level='info')
                     idx += 1
                     continue
                 if filename in downloaded_files and os.path.getsize(filepath) > 1024 * 10:
-                    self.log(f'[{idx}/{total_count or "?"}] 已存在，跳过: {filename}')
+                    self.log(f'[{idx}/{total_count or "?"}] 已存在，跳过: {filename}', level='info')
                     page_progress['tracks'][track_id] = {'url': '', 'done': True, 'filename': filename}
                     self.save_progress(progress)
                     idx += 1
@@ -172,18 +172,18 @@ class AlbumDownloader:
                 # 直接传递track_id、album_id、filename给downloader
                 for attempt in range(3):
                     try:
-                        self.log(f'[{idx}/{total_count or "?"}] 下载: {filename} (第{attempt+1}次尝试)')
+                        self.log(f'[{idx}/{total_count or "?"}] 下载: {filename} (第{attempt+1}次尝试)', level='info')
                         self.downloader.download_track_by_id(getattr(track, 'trackId', None), self.album_id, filepath, log_func=self.log)
-                        self.log(f'[{idx}] 下载完成: {filename}')
+                        self.log(f'[{idx}] 下载完成: {filename}', level='info')
                         page_progress['tracks'][track_id] = {'url': '', 'done': True, 'filename': filename}
                         self.save_progress(progress)
                         break
                     except Exception as e:
-                        self.log(f'[{idx}] 下载失败: {e}')
+                        self.log(f'[{idx}] 下载失败: {e}', level='warning')
                         page_progress['tracks'][track_id] = {'url': '', 'done': False, 'error': str(e), 'filename': filename}
                         self.save_progress(progress)
                         if attempt == 2:
-                            self.log(f'[{idx}] 多次失败，跳过: {filename}')
+                            self.log(f'[{idx}] 多次失败，跳过: {filename}', level='error')
                 idx += 1
                 if self.delay > 0:
                     time.sleep(self.delay)
@@ -199,7 +199,7 @@ class AlbumDownloader:
                 finished = True
             else:
                 page += 1
-        self.log('专辑下载完成')
+        self.log('专辑下载完成', level='info')
 
     def download_album(self):
         if not self.fetch_album_info():
