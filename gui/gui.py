@@ -221,7 +221,7 @@ class XimalayaGUI:
             return
         self.log(f'下载单曲: track_id={track_id}')
         def task():
-            # 可根据需要传递 album_id、filename、save_dir
+            # 直接调用新版download_single_track，文件名自动用音频标题
             download_single_track(track_id, log_func=self.log, save_dir=self.default_download_dir)
         self.run_in_thread(task)
 
