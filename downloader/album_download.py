@@ -32,6 +32,55 @@ class AlbumDownloader:
         self.log(f'专辑：{self.album.albumTitle}，准备下载...')
         return True
 
+    def save_album_info(self):
+        """保存专辑封面和专辑信息到下载目录，并生成可读的 markdown 文件"""
+        import json
+        import requests
+        # 保存专辑信息（json）
+        album_info = {
+            'albumId': getattr(self.album, 'albumId', None),
+            'albumTitle': getattr(self.album, 'albumTitle', ''),
+            'intro': getattr(self.album, 'intro', ''),
+            'cover': getattr(self.album, 'cover', ''),
+            'announcer': getattr(self.album, 'announcer', ''),
+            'trackCount': getattr(self.album, 'trackCount', None),
+            'createdAt': getattr(self.album, 'createdAt', None),
+            'updatedAt': getattr(self.album, 'updatedAt', None),
+        }
+        info_path = os.path.join(self.save_dir, 'album_info.json')
+        try:
+            with open(info_path, 'w', encoding='utf-8') as f:
+                json.dump(album_info, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            self.log(f'保存专辑信息失败: {e}')
+        # 保存专辑信息（markdown）
+        md_path = os.path.join(self.save_dir, 'album_info.md')
+        try:
+            with open(md_path, 'w', encoding='utf-8') as f:
+                f.write(f"# {album_info['albumTitle']}\n\n")
+                if album_info['cover']:
+                    f.write(f"![cover]({album_info['cover']})\n\n")
+                f.write(f"**专辑ID**: {album_info['albumId']}  \n")
+                f.write(f"**主播**: {album_info['announcer']}  \n")
+                f.write(f"**曲目数**: {album_info['trackCount']}  \n")
+                f.write(f"**创建时间**: {album_info['createdAt']}  \n")
+                f.write(f"**更新时间**: {album_info['updatedAt']}  \n\n")
+                f.write(f"## 简介\n{album_info['intro']}\n")
+        except Exception as e:
+            self.log(f'保存专辑markdown信息失败: {e}')
+        # 下载封面图片
+        cover_url = getattr(self.album, 'cover', None)
+        if cover_url:
+            try:
+                resp = requests.get(cover_url, timeout=10)
+                if resp.status_code == 200:
+                    with open(os.path.join(self.save_dir, 'cover.jpg'), 'wb') as f:
+                        f.write(resp.content)
+                else:
+                    self.log(f'封面下载失败，状态码: {resp.status_code}')
+            except Exception as e:
+                self.log(f'下载封面失败: {e}')
+
     def _get_progress_file(self):
         return os.path.join(self.save_dir, 'download_progress.json')
 
@@ -147,6 +196,7 @@ class AlbumDownloader:
     def download_album(self):
         if not self.fetch_album_info():
             return
+        self.save_album_info()
         self.log('开始下载专辑音频...')
         self.fetch_and_download_tracks()
 

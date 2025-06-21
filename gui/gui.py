@@ -12,6 +12,7 @@ from PIL import Image, ImageTk
 import requests
 from io import BytesIO
 from downloader.album_download import AlbumDownloader
+from downloader.single_track_download import download_single_track
 
 class XimalayaDownloader:
     """
@@ -220,34 +221,8 @@ class XimalayaGUI:
             return
         self.log(f'下载单曲: track_id={track_id}')
         def task():
-            # 只用track_id下载，不再依赖album_id
-            # 这里需要用户的track_fetcher.py的fetch_track_crypted_url支持只用track_id获取url
-            # 若原函数需要album_id，可尝试用0或None等默认值
-            try:
-                crypted_url = fetch_track_crypted_url(int(track_id), None)
-            except TypeError:
-                crypted_url = fetch_track_crypted_url(int(track_id), 0)
-            if not crypted_url:
-                self.log('未获取到加密URL')
-                self.track_title_var.set('')
-                self.track_url_var.set('')
-                return
-            url = decrypt_url(crypted_url)
-            # 获取音频标题
-            title = ''
-            try:
-                tracks = fetch_album_tracks(0, 1, 1)  # 这里0仅为防止报错，实际不会用到
-            except Exception:
-                tracks = []
-            # 尝试通过track_id获取标题（如有API可用）
-            # 由于fetch_album_tracks需要album_id，无法直接查找标题，默认用ID
-            self.track_title_var.set(title or f'ID:{track_id}')
-            self.track_url_var.set(url)
-            filename = f'{title or track_id}.m4a'
-            downloader = M4ADownloader()
-            self.log(f'正在下载: {filename}')
-            downloader.download_m4a(url, filename)
-            self.log('下载完成')
+            # 可根据需要传递 album_id、filename、save_dir
+            download_single_track(track_id, log_func=self.log, save_dir=self.default_download_dir)
         self.run_in_thread(task)
 
 if __name__ == '__main__':
