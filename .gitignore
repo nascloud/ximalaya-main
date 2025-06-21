@@ -4,6 +4,5 @@ __pycache__/
 downloads/
 .vscode/
 .pyc
-main.spec
 dist/
 build/

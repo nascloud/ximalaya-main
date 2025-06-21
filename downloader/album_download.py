@@ -22,11 +22,12 @@ class AlbumDownloader:
         if not self.album:
             self.log('获取专辑信息失败')
             return False
-        # 优先使用外部传递的 save_dir
+        # 过滤专辑名中的非法字符
+        safe_album_title = re.sub(r'[\\/:*?"<>|]', '_', self.album.albumTitle)
         if self.save_dir:
-            self.save_dir = os.path.join(self.save_dir, self.album.albumTitle)
+            self.save_dir = os.path.join(self.save_dir, safe_album_title)
         else:
-            self.save_dir = os.path.join('downloads', self.album.albumTitle)
+            self.save_dir = os.path.join('downloads', safe_album_title)
         os.makedirs(self.save_dir, exist_ok=True)
         self.log(f'专辑：{self.album.albumTitle}，准备下载...')
         return True
