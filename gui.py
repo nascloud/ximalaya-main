@@ -43,7 +43,6 @@ class XimalayaGUI:
         self.album_intro_var = tk.StringVar()
         self.album_create_var = tk.StringVar()
         self.album_update_var = tk.StringVar()
-        self.album_cover_var = tk.StringVar()
         self.album_count_var = tk.StringVar()
         tk.Label(info_frame, text='标题:').grid(row=0, column=0, sticky='e')
         tk.Label(info_frame, textvariable=self.album_title_var, wraplength=200, anchor='w', justify='left').grid(row=0, column=1, sticky='w')
@@ -58,6 +57,8 @@ class XimalayaGUI:
         tk.Label(info_frame, text='封面:').grid(row=4, column=0, sticky='e')
         self.cover_label = tk.Label(info_frame)
         self.cover_label.grid(row=4, column=1, rowspan=2, padx=5, pady=5)
+        tk.Label(info_frame, text='曲目数量:').grid(row=5, column=0, sticky='e')
+        tk.Label(info_frame, textvariable=self.album_count_var, anchor='w', justify='left').grid(row=5, column=1, sticky='w')
 
         # 音频信息展示区
         track_frame = tk.LabelFrame(root, text='音频信息', padx=10, pady=5)
@@ -116,17 +117,17 @@ class XimalayaGUI:
                 self.intro_text.config(state='disabled')
                 self.album_create_var.set(album.createDate)
                 self.album_update_var.set(album.updateDate)
-                tracks = fetch_album_tracks(int(album_id), 1, 1)
-                cover_url = tracks[0].cover if tracks and tracks[0].cover else ''
-                total_count = tracks[0].totalCount if tracks and tracks[0].totalCount else ''
-                # self.album_cover_var.set(cover_url)  # 不再显示封面链接
+                # 直接从album获取cover和曲目数量
+                cover_url = album.cover if album.cover else ''
+                # 获取曲目数量（可选：通过fetch_album_tracks获取totalCount更准确）
+                try:
+                    tracks = fetch_album_tracks(int(album_id), 1, 1)
+                    total_count = tracks[0].totalCount if tracks and tracks[0].totalCount else ''
+                except Exception:
+                    total_count = ''
                 self.album_count_var.set(str(total_count))
                 self.show_cover_image(cover_url)
-                self.log(f'专辑标题: {album.albumTitle}')
-                self.log(f'简介: {intro}')
-                self.log(f'创建时间: {album.createDate}, 更新时间: {album.updateDate}')
-                self.log(f'封面: {cover_url}')
-                self.log(f'曲目数量: {total_count}')
+                self.log(f'获取专辑成功: {album.albumTitle}')
             else:
                 self.album_title_var.set('')
                 self.intro_text.config(state='normal')
@@ -134,7 +135,6 @@ class XimalayaGUI:
                 self.intro_text.config(state='disabled')
                 self.album_create_var.set('')
                 self.album_update_var.set('')
-                # self.album_cover_var.set('')
                 self.album_count_var.set('')
                 self.show_cover_image('')
                 self.log('获取专辑信息失败')
