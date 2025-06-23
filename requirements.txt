@@ -1,4 +1,0 @@
-requests
-pycryptodome
-fake-useragent
-python-dotenv

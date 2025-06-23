@@ -10,7 +10,12 @@ class M4ADownloader:
         """
         单次下载，不做重试，由外部处理异常
         """
-        response = requests.get(url, stream=True, timeout=20)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Referer': 'https://www.ximalaya.com/',
+            # 'Cookie': '',  # 如有需要可在此处补充
+        }
+        response = requests.get(url, stream=True, timeout=20, verify=False, headers=headers)
         response.raise_for_status()
         total = int(response.headers.get('content-length', 0))
         downloaded = 0
