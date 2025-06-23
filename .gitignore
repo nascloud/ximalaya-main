@@ -6,3 +6,4 @@ downloads/
 .pyc
 dist/
 build/
+AudioBook/*

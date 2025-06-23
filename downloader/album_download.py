@@ -8,7 +8,7 @@ from utils.utils import decrypt_url
 
 
 class AlbumDownloader:
-    def __init__(self, album_id, log_func=print, delay=0, save_dir=None):
+    def __init__(self, album_id, log_func=print, delay=0, save_dir=None, progress_func=None):
         self.album_id = int(album_id)
         self.log = log_func
         self.album = None
@@ -16,6 +16,7 @@ class AlbumDownloader:
         self.save_dir = save_dir  # 支持外部传递下载目录
         self.downloader = M4ADownloader()
         self.delay = delay  # 下载延迟（秒）
+        self.progress_func = progress_func
 
     def fetch_album_info(self):
         self.album = fetch_album(self.album_id)
@@ -137,6 +138,7 @@ class AlbumDownloader:
         idx = 1
         progress = self.load_progress()
         finished = False
+        downloaded = 0
         while not finished:
             page_key = str(page)
             if progress.get(page_key, {}).get('done'):
@@ -162,24 +164,36 @@ class AlbumDownloader:
                 if track_status.get('done'):
                     self.log(f'[{idx}/{total_count or "?"}] 已完成，跳过: {filename}', level='info')
                     idx += 1
+                    downloaded += 1
+                    if self.progress_func and total_count:
+                        self.progress_func(downloaded, total_count, filename)
                     continue
                 if filename in downloaded_files and os.path.getsize(filepath) > 1024 * 10:
                     self.log(f'[{idx}/{total_count or "?"}] 已存在，跳过: {filename}', level='info')
                     page_progress['tracks'][track_id] = {'url': '', 'done': True, 'filename': filename}
                     self.save_progress(progress)
                     idx += 1
+                    downloaded += 1
+                    if self.progress_func and total_count:
+                        self.progress_func(downloaded, total_count, filename)
                     continue
-                # 直接传递track_id、album_id、filename给downloader
                 for attempt in range(3):
                     try:
+                        if self.progress_func and total_count:
+                            self.progress_func(downloaded+1, total_count, filename)
                         self.log(f'[{idx}/{total_count or "?"}] 下载: {filename} (第{attempt+1}次尝试)', level='info')
                         self.downloader.download_track_by_id(getattr(track, 'trackId', None), self.album_id, filepath, log_func=self.log)
                         self.log(f'[{idx}] 下载完成: {filename}', level='info')
                         page_progress['tracks'][track_id] = {'url': '', 'done': True, 'filename': filename}
                         self.save_progress(progress)
+                        downloaded += 1
+                        if self.progress_func and total_count:
+                            self.progress_func(downloaded, total_count, filename)
                         break
                     except Exception as e:
                         self.log(f'[{idx}] 下载失败: {e}', level='warning')
+                        if self.progress_func and total_count:
+                            self.progress_func(downloaded, total_count, filename)
                         page_progress['tracks'][track_id] = {'url': '', 'done': False, 'error': str(e), 'filename': filename}
                         self.save_progress(progress)
                         if attempt == 2:
@@ -192,7 +206,6 @@ class AlbumDownloader:
                 page_progress['done'] = True
             progress[page_key] = page_progress
             self.save_progress(progress)
-            # 判断是否达到总数
             if total_count and idx > total_count:
                 finished = True
             elif not page_tracks or len(page_tracks) == 0:
@@ -200,6 +213,8 @@ class AlbumDownloader:
             else:
                 page += 1
         self.log('专辑下载完成', level='info')
+        if self.progress_func and total_count:
+            self.progress_func(total_count, total_count, '专辑下载完成')
 
     def download_album(self):
         if not self.fetch_album_info():
