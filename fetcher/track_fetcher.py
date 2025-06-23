@@ -1,3 +1,5 @@
+class BlockedException(Exception):
+    pass
 import requests
 import os
 from utils.utils import decrypt_url
@@ -40,6 +42,10 @@ def fetch_track_crypted_url(track_id: int, album_id: int) -> str:
     response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
         data = response.json()
+        # 检查风控
+        if data.get("ret") == 1001 or "系统繁忙" in data.get("msg", ""):
+            print(f"风控触发: track {track_id}: {response.status_code}, {response.text}")
+            raise BlockedException(f"系统繁忙，风控触发: {response.text}")
         play_url_list = data.get("trackInfo", {}).get("playUrlList", [])
         if play_url_list:
             return play_url_list[0].get("url", "")
@@ -73,30 +79,39 @@ def fetch_album_tracks(album_id: int, page: int, page_size: int) -> List[Track]:
         data = response.json()
         track_list = data.get("data", {}).get("trackDetailInfos", [])
         tracks = []
-        for track in track_list:
-            track_info = track['trackInfo']
-            crypted_url = fetch_track_crypted_url(track_info["id"], album_id)
-            if not crypted_url:
-                print(f"跳过: {track_info['title']}，无有效播放链接")
-                continue
-            cover_path = track_info.get("cover")
-            cover_url = f"https://imagev2.xmcdn.com/{cover_path}" if cover_path and not cover_path.startswith("http") else cover_path
-            tracks.append(
-                Track(
-                    trackId=track_info["id"],
-                    title=track_info["title"],
-                    createTime=track_info["createdTime"],
-                    updateTime=track_info["updatedTime"],
-                    cryptedUrl=crypted_url,
-                    url=decrypt_url(crypted_url),
-                    duration=track_info.get("duration", 0),
-                    totalCount=data.get("data", {}).get("totalCount"),  # 专辑音频总数
-                    page=page,  # 当前页码
-                    pageSize=page_size,  # 每页数量
-                    cover=cover_url,  # 拼接后的专辑封面
+        try:
+            for track in track_list:
+                track_info = track['trackInfo']
+                try:
+                    crypted_url = fetch_track_crypted_url(track_info["id"], album_id)
+                except BlockedException as be:
+                    print(f"风控终止专辑曲目拉取: {be}")
+                    # 直接抛出到外层
+                    raise
+                if not crypted_url:
+                    print(f"跳过: {track_info['title']}，无有效播放链接")
+                    continue
+                cover_path = track_info.get("cover")
+                cover_url = f"https://imagev2.xmcdn.com/{cover_path}" if cover_path and not cover_path.startswith("http") else cover_path
+                tracks.append(
+                    Track(
+                        trackId=track_info["id"],
+                        title=track_info["title"],
+                        createTime=track_info["createdTime"],
+                        updateTime=track_info["updatedTime"],
+                        cryptedUrl=crypted_url,
+                        url=decrypt_url(crypted_url),
+                        duration=track_info.get("duration", 0),
+                        totalCount=data.get("data", {}).get("totalCount"),  # 专辑音频总数
+                        page=page,  # 当前页码
+                        pageSize=page_size,  # 每页数量
+                        cover=cover_url,  # 拼接后的专辑封面
+                    )
                 )
-            )
-        return tracks
+            return tracks
+        except BlockedException:
+            # 直接抛出到外层
+            raise
     else:
         print(f"Failed to fetch tracks: {response.status_code}, {response.text}")
         return []

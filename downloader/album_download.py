@@ -8,18 +8,21 @@ from utils.utils import decrypt_url
 
 
 class AlbumDownloader:
-    def __init__(self, album_id, log_func=print, delay=0, save_dir=None, progress_func=None):
+    def __init__(self, album_id, log_func=print, delay=0, save_dir=None, progress_func=None, album=None, total_count=None):
         self.album_id = int(album_id)
         self.log = log_func
-        self.album = None
+        self.album = album if album is not None else None
         self.tracks = []
         self.save_dir = save_dir  # 支持外部传递下载目录
         self.downloader = M4ADownloader()
         self.delay = delay  # 下载延迟（秒）
         self.progress_func = progress_func
+        self._total_count_override = total_count
 
     def fetch_album_info(self):
-        self.album = fetch_album(self.album_id)
+        # 如果已传入album对象则直接用，无需重复获取
+        if self.album is None:
+            self.album = fetch_album(self.album_id)
         if not self.album:
             self.log('获取专辑信息失败', level='error')
             return False
@@ -131,87 +134,155 @@ class AlbumDownloader:
 
     def fetch_and_download_tracks(self):
         import json
-        page = 1
+        import time
         page_size = 20
-        total_count = None
-        downloaded_files = set(os.listdir(self.save_dir))
-        idx = 1
         progress = self.load_progress()
-        finished = False
+        downloaded_files = set(os.listdir(self.save_dir))
+        failed_tracks = []  # [(page, track_id, filename, idx, error_log)]
+        total_count = None
+        idx_map = {}  # track_id -> idx
+        # 先获取第一页，拿到总数
+        # 风控检测标志
+        self._blocked = False
+        from fetcher.track_fetcher import BlockedException
+        def fetch_album_tracks_with_block_check(album_id, page, page_size):
+            try:
+                tracks = fetch_album_tracks(album_id, page, page_size)
+                return tracks
+            except BlockedException as be:
+                self.log(f'检测到风控，已暂停下载：{be}', level='error')
+                progress = self.load_progress()
+                progress['blocked'] = True
+                self.save_progress(progress)
+                self._blocked = True
+                return None
+
+        first_page_tracks = fetch_album_tracks_with_block_check(self.album_id, 1, page_size)
+        if not first_page_tracks:
+            self.log('未获取到专辑曲目，可能被风控，请稍后重试', level='error')
+            # 记录风控状态
+            progress = self.load_progress()
+            progress['blocked'] = True
+            self.save_progress(progress)
+            self._blocked = True
+            return
+        # 优先使用传递的总数
+        if self._total_count_override is not None and self._total_count_override > 0:
+            total_count = self._total_count_override
+        elif hasattr(first_page_tracks[0], 'totalCount'):
+            total_count = first_page_tracks[0].totalCount
+        # 计算总页数
+        total_pages = (total_count + page_size - 1) // page_size if total_count else 1
+        # 统计所有已完成的track数
         downloaded = 0
-        while not finished:
+        # 统计所有未完成的track
+        idx = 1
+        # 优化：直接跳到未完成的最小页码
+        min_unfinished_page = None
+        for page in range(1, total_pages + 1):
             page_key = str(page)
-            if progress.get(page_key, {}).get('done'):
-                self.log(f'第{page}页已全部完成，跳过', level='info')
-                idx += page_size
-                page += 1
-                continue
-            page_tracks = fetch_album_tracks(self.album_id, page, page_size)
-            if not page_tracks:
-                break
-            if total_count is None and hasattr(page_tracks[0], 'totalCount'):
-                total_count = page_tracks[0].totalCount
-            self.log(f'已获取第{page}页曲目，共{idx-1+len(page_tracks)}/{total_count or "?"}条，开始下载本页...', level='info')
             page_progress = progress.get(page_key, {})
-            if 'tracks' not in page_progress:
-                page_progress['tracks'] = {}
+            tracks_progress = page_progress.get('tracks', {})
+            if not page_progress.get('done'):
+                min_unfinished_page = page
+                break
+            idx += page_size
+        if min_unfinished_page is None:
+            self.log('所有音频已完成，无需下载', level='info')
+            return
+        # 从未完成的最小页码开始遍历
+        page = min_unfinished_page
+        while page <= total_pages:
+            page_key = str(page)
+            page_progress = progress.get(page_key, {})
+            tracks_progress = page_progress.get('tracks', {})
+            # 只请求未完成页
+            if page == 1:
+                page_tracks = first_page_tracks
+            else:
+                if page_progress.get('done'):
+                    idx += page_size
+                    page += 1
+                    continue
+                page_tracks = fetch_album_tracks_with_block_check(self.album_id, page, page_size)
+            if not page_tracks:
+                self.log('检测到风控或接口异常，已暂停下载。请稍后重启程序。', level='error')
+                progress['blocked'] = True
+                self.save_progress(progress)
+                self._blocked = True
+                break
             for i, track in enumerate(page_tracks):
                 safe_title = re.sub(r'[\\/:*?"<>|]', '_', getattr(track, 'title', str(getattr(track, 'trackId', idx))))
                 filename = f'{idx:03d}_{safe_title}.m4a'
                 filepath = os.path.join(self.save_dir, filename)
                 track_id = str(getattr(track, 'trackId', idx))
-                track_status = page_progress['tracks'].get(track_id, {})
+                idx_map[track_id] = idx
+                track_status = tracks_progress.get(track_id, {})
+                # 已完成
                 if track_status.get('done'):
-                    self.log(f'[{idx}/{total_count or "?"}] 已完成，跳过: {filename}', level='info')
-                    idx += 1
                     downloaded += 1
-                    if self.progress_func and total_count:
-                        self.progress_func(downloaded, total_count, filename)
+                    idx += 1
                     continue
+                # 文件已存在且大于10KB，视为完成
                 if filename in downloaded_files and os.path.getsize(filepath) > 1024 * 10:
-                    self.log(f'[{idx}/{total_count or "?"}] 已存在，跳过: {filename}', level='info')
+                    tracks_progress[track_id] = {'url': '', 'done': True, 'filename': filename}
+                    self.save_progress(progress)
+                    downloaded += 1
+                    idx += 1
+                    continue
+                # 未完成或失败
+                failed_tracks.append((page, track_id, filename, idx, track_status.get('error', '')))
+                idx += 1
+            page += 1
+        # 2. 优先补下所有未完成/失败的track，支持指数退避
+        failed_log = []
+        if self._blocked:
+            self.log('下载已因风控暂停，未完成的音频请稍后重启程序继续。', level='error')
+            return
+
+        for page, track_id, filename, idx, last_error in failed_tracks:
+            page_key = str(page)
+            page_progress = progress.get(page_key, {})
+            if 'tracks' not in page_progress:
+                page_progress['tracks'] = {}
+            error_detail = ''
+            for attempt in range(5):
+                try:
+                    if self.progress_func and total_count:
+                        self.progress_func(downloaded+1, total_count, filename)
+                    self.log(f'[{idx}/{total_count or "?"}] 下载: {filename} (第{attempt+1}次尝试)', level='info')
+                    self.downloader.download_track_by_id(int(track_id), self.album_id, os.path.join(self.save_dir, filename), log_func=self.log)
+                    self.log(f'[{idx}] 下载完成: {filename}', level='info')
                     page_progress['tracks'][track_id] = {'url': '', 'done': True, 'filename': filename}
                     self.save_progress(progress)
-                    idx += 1
                     downloaded += 1
                     if self.progress_func and total_count:
                         self.progress_func(downloaded, total_count, filename)
-                    continue
-                for attempt in range(3):
-                    try:
-                        if self.progress_func and total_count:
-                            self.progress_func(downloaded+1, total_count, filename)
-                        self.log(f'[{idx}/{total_count or "?"}] 下载: {filename} (第{attempt+1}次尝试)', level='info')
-                        self.downloader.download_track_by_id(getattr(track, 'trackId', None), self.album_id, filepath, log_func=self.log)
-                        self.log(f'[{idx}] 下载完成: {filename}', level='info')
-                        page_progress['tracks'][track_id] = {'url': '', 'done': True, 'filename': filename}
-                        self.save_progress(progress)
-                        downloaded += 1
-                        if self.progress_func and total_count:
-                            self.progress_func(downloaded, total_count, filename)
-                        break
-                    except Exception as e:
-                        self.log(f'[{idx}] 下载失败: {e}', level='warning')
-                        if self.progress_func and total_count:
-                            self.progress_func(downloaded, total_count, filename)
-                        page_progress['tracks'][track_id] = {'url': '', 'done': False, 'error': str(e), 'filename': filename}
-                        self.save_progress(progress)
-                        if attempt == 2:
-                            self.log(f'[{idx}] 多次失败，跳过: {filename}', level='error')
-                idx += 1
-                if self.delay > 0:
-                    time.sleep(self.delay)
-            all_done = all(t.get('done') for t in page_progress['tracks'].values()) and len(page_progress['tracks']) == len(page_tracks)
+                    break
+                except Exception as e:
+                    error_detail = str(e)
+                    self.log(f'[{idx}] 下载失败: {e}', level='warning')
+                    if self.progress_func and total_count:
+                        self.progress_func(downloaded, total_count, filename)
+                    page_progress['tracks'][track_id] = {'url': '', 'done': False, 'error': error_detail, 'filename': filename}
+                    self.save_progress(progress)
+                    # 指数退避
+                    sleep_time = min(2 ** attempt, 30)
+                    time.sleep(sleep_time)
+                    if attempt == 4:
+                        self.log(f'[{idx}] 多次失败，跳过: {filename}', level='error')
+                        failed_log.append({'page': page, 'track_id': track_id, 'filename': filename, 'idx': idx, 'error': error_detail})
+            # 标记本页是否全部完成
+            tracks_progress = page_progress['tracks']
+            all_done = all(t.get('done') for t in tracks_progress.values()) and len(tracks_progress) >= 1
             if all_done:
                 page_progress['done'] = True
             progress[page_key] = page_progress
             self.save_progress(progress)
-            if total_count and idx > total_count:
-                finished = True
-            elif not page_tracks or len(page_tracks) == 0:
-                finished = True
-            else:
-                page += 1
+        if failed_log:
+            self.log('\n以下音频多次下载失败，请手动排查：', level='error')
+            for item in failed_log:
+                self.log(f"[页码:{item['page']}, idx:{item['idx']}, track_id:{item['track_id']}] {item['filename']}\n错误信息: {item['error']}", level='error')
         self.log('专辑下载完成', level='info')
         if self.progress_func and total_count:
             self.progress_func(total_count, total_count, '专辑下载完成')

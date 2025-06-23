@@ -198,10 +198,31 @@ class XimalayaGUI:
             delay = 1
         self.download_delay = delay
         self.log_info(f'下载专辑: {album_id} (延迟: {delay}s)')
+        # 直接传递已获取的album对象和曲目总数
+        album_obj = getattr(self, 'album', None) if hasattr(self, 'album') else None
+        total_count = None
+        if hasattr(self, 'album_count_var'):
+            try:
+                total_count = int(self.album_count_var.get())
+            except Exception:
+                total_count = None
         def task():
-            def progress_hook(current, total, filename=None):
-                self.root.after(0, lambda: self.set_progress(current, total, filename))
-            AlbumDownloader(album_id, log_func=self.log, delay=delay, save_dir=self.default_download_dir, progress_func=progress_hook).download_album()
+            try:
+                self.log_info('下载线程已启动')
+                def progress_hook(current, total, filename=None):
+                    self.root.after(0, lambda: self.set_progress(current, total, filename))
+                AlbumDownloader(
+                    album_id,
+                    log_func=self.log,
+                    delay=delay,
+                    save_dir=self.default_download_dir,
+                    progress_func=progress_hook,
+                    album=album_obj,
+                    total_count=total_count
+                ).download_album()
+            except Exception as e:
+                self.log_error(f'下载线程异常: {e}')
+                messagebox.showerror('错误', f'下载线程异常: {e}')
         self.run_in_thread(task)
 
     def run_track_download(self):
