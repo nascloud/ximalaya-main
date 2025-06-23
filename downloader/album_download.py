@@ -1,10 +1,8 @@
 import os
 import re
-import time
 from fetcher.album_fetcher import fetch_album
 from fetcher.track_fetcher import fetch_album_tracks
 from downloader.downloader import M4ADownloader
-from utils.utils import decrypt_url
 
 
 class AlbumDownloader:
@@ -18,6 +16,7 @@ class AlbumDownloader:
         self.delay = delay  # 下载延迟（秒）
         self.progress_func = progress_func
         self._total_count_override = total_count
+        self._partial_files = set()  # 跟踪部分下载的文件
 
     def fetch_album_info(self):
         # 如果已传入album对象则直接用，无需重复获取
@@ -119,18 +118,46 @@ class AlbumDownloader:
     def save_progress(self, progress):
         import json
         import tempfile
+        import time
         progress_file = self._get_progress_file()
-        try:
-            # 使用临时文件+fsync确保写入磁盘
-            dir_name = os.path.dirname(progress_file)
-            with tempfile.NamedTemporaryFile('w', encoding='utf-8', dir=dir_name, delete=False) as tf:
-                json.dump(progress, tf, ensure_ascii=False, indent=2)
-                tf.flush()
-                os.fsync(tf.fileno())
-                tmp_file = tf.name
-            os.replace(tmp_file, progress_file)
-        except Exception as e:
-            self.log(f'保存进度失败: {e}', level='warning')
+        max_retries = 3
+        retry_delay = 0.5
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                # Windows兼容的原子写入方式
+                dir_name = os.path.dirname(progress_file)
+                tmp_file = None
+                try:
+                    # 显式创建临时文件并确保关闭
+                    tf = tempfile.NamedTemporaryFile(
+                        'w', encoding='utf-8', 
+                        dir=dir_name, 
+                        delete=False
+                    )
+                    tmp_file = tf.name
+                    json.dump(progress, tf, ensure_ascii=False, indent=2)
+                    tf.flush()
+                    os.fsync(tf.fileno())
+                    tf.close()  # 显式关闭文件句柄
+                    
+                    # 尝试重命名
+                    os.replace(tmp_file, progress_file)
+                    return  # 成功则直接返回
+                except Exception as e:
+                    if tmp_file and os.path.exists(tmp_file):
+                        try:
+                            os.remove(tmp_file)
+                        except:
+                            pass
+                    if attempt == max_retries:
+                        raise
+                    time.sleep(retry_delay * attempt)
+            except Exception as e:
+                if attempt == max_retries:
+                    self.log(f'保存进度失败(尝试{attempt}次): {e}', level='error')
+                    raise
+                time.sleep(retry_delay * attempt)
 
     def fetch_and_download_tracks(self):
         import json
@@ -147,6 +174,8 @@ class AlbumDownloader:
         from fetcher.track_fetcher import BlockedException
         def fetch_album_tracks_with_block_check(album_id, page, page_size):
             try:
+                if self._blocked:
+                    raise BlockedException('操作因风控被阻止')
                 tracks = fetch_album_tracks(album_id, page, page_size)
                 return tracks
             except BlockedException as be:
@@ -238,6 +267,9 @@ class AlbumDownloader:
         failed_log = []
         if self._blocked:
             self.log('下载已因风控暂停，未完成的音频请稍后重启程序继续。', level='error')
+            progress = self.load_progress()
+            progress['blocked'] = True
+            self.save_progress(progress)
             return
 
         for page, track_id, filename, idx, last_error in failed_tracks:
@@ -292,7 +324,23 @@ class AlbumDownloader:
             return
         self.save_album_info()
         self.log('开始下载专辑音频...')
-        self.fetch_and_download_tracks()
+        try:
+            self.fetch_and_download_tracks()
+        except Exception as e:
+            self.log(f'下载过程中发生错误: {e}', level='error')
+            self.cleanup_partial_downloads()
+            raise
+
+    def cleanup_partial_downloads(self):
+        """清理未完成的部分下载文件"""
+        for filepath in self._partial_files:
+            try:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                    self.log(f'已清理部分下载文件: {filepath}', level='info')
+            except Exception as e:
+                self.log(f'清理文件失败: {filepath}, 错误: {e}', level='warning')
+        self._partial_files.clear()
 
 
 # 兼容原有函数式调用
